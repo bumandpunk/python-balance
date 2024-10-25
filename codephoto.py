@@ -4,6 +4,7 @@ import time
 import threading
 import requests
 import base64
+from datetime import datetime
 
 def fetch_token(user_input, image_path,face_base64, qr_data):
     url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
@@ -66,7 +67,18 @@ def capture_single_photo(camera):
     if not ret:
         print("Failed to read frame from camera.")
         return None
+   # 获取当前时间
+    fixed_text = 'Xsthings取证台'
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    watermark_text = f"{fixed_text} {current_time}"
 
+    # 设置水印位置
+    text_size, _ = cv2.getTextSize(watermark_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+    text_x = frame.shape[1] - text_size[0] - 10  # 距右上角10px
+    text_y = text_size[1] + 10  # 距上方10px
+
+    # 绘制水印
+    cv2.putText(frame, watermark_text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     try:
         _, buffer = cv2.imencode('.jpg', frame)
         photo_base64 = 'data:image/jpeg;base64,' + base64.b64encode(buffer).decode('utf-8')
