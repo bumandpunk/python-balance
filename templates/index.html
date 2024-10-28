@@ -1,0 +1,74 @@
+<!--
+ * @Date: 2024-10-25 17:50:42
+ * @LastEditors: Zfj
+ * @LastEditTime: 2024-10-25 18:26:59
+ * @FilePath: /python-balance/templates/index.html
+ * @Description: 
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Control Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Xthings设备中控台</h1>
+    <div>
+        <label>选择摄像头:</label>
+        <select id="camera-select">
+            <option value="1">摄像头1</option>
+            <option value="3">摄像头2</option>
+        </select>
+    </div>
+    <button class="btn" onclick="capturePhoto()">拍照</button>
+    <button  class="btn"  onclick="scanQRCode()">识别二维码</button>
+
+    <div id="result"></div>
+
+    <script>
+        function capturePhoto() {
+            const cameraId = document.getElementById("camera-select").value;
+            fetch("/capture", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `camera_id=${cameraId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.photo) {
+                    document.getElementById("result").innerHTML = `<img src="data:image/jpeg;base64,${data.photo}" alt="Captured Photo" />`;
+                } else {
+                    document.getElementById("result").textContent = data.error;
+                }
+            });
+        }
+
+        function scanQRCode() {
+            const cameraId = document.getElementById("camera-select").value;
+            fetch("/scan_qrcode2", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `camera_id=${cameraId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.qrcodes) {
+                    document.getElementById("result").textContent = `QR Codes: ${data.qrcodes.join(", ")}`;
+                } else {
+                    document.getElementById("result").textContent = data.error;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+<style>
+    .btn{
+        font-size: 30px;
+    }
+    #result{
+        width: 80%;
+    }
+</style>

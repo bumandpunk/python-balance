@@ -68,7 +68,7 @@ def capture_single_photo(camera):
         print("Failed to read frame from camera.")
         return None
    # 获取当前时间
-    fixed_text = 'Xsthings取证台'
+    fixed_text = 'Xthings'
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     watermark_text = f"{fixed_text} {current_time}"
 
@@ -162,7 +162,7 @@ def main():
     camera3 = cv2.VideoCapture(2)  # 摄像头 3 用于人脸拍照
 
     # 设置摄像头帧率，确保帧速足够快
-    camera1.set(cv2.CAP_PROP_FPS, 30)  # 设置帧率为30
+    camera1.set(cv2.CAP_PROP_FPS, 60)  # 设置帧率为30
     camera3.set(cv2.CAP_PROP_FPS, 30)  # 设置帧率为30
 
     # 检查摄像头是否成功打开
