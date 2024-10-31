@@ -93,15 +93,17 @@ def capture_single_photo(camera):
 
 def process_input(input_data):
     """
-    判断输入数据是数字还是二维码，并存储到相应的变量中
+    判断输入数据是数字（整数或小数）还是二维码，并存储到相应的变量中
     """
     global user_input, scanned_qr_code
     input_data = input_data.strip()
     
-    if input_data.isdigit():  # 如果是数字
-        user_input = int(input_data)
+    try:
+        # 尝试将输入数据转换为浮点数
+        user_input = float(input_data)
         print(f"Number entered: {user_input}")
-    else:  # 如果不是数字，则认为是二维码
+    except ValueError:
+        # 如果转换失败，则认为是二维码
         scanned_qr_code = input_data
         print(f"QR code scanned: {scanned_qr_code}")
 
@@ -129,8 +131,8 @@ def main():
     global user_input, scanned_qr_code
 
     # 主程序
-    camera1 = cv2.VideoCapture('/dev/video2')  # 摄像头 1 用于拍照
-    camera3 = cv2.VideoCapture('/dev/video1')  # 摄像头 3 用于人脸拍照
+    camera1 = cv2.VideoCapture('/dev/v4l/by-id/usb-Generic_HBCJ_Camera_200901010001-video-index')  # 摄像头 1 用于拍照   使用
+    camera3 = cv2.VideoCapture('/dev/v4l/by-id/usb-DR-MX200C_DR-MX200C_342621-video-indexo')  # 摄像头 3 用于人脸拍照
 
     # 设置摄像头帧率，确保帧速足够快
     camera1.set(cv2.CAP_PROP_FPS, 60)
