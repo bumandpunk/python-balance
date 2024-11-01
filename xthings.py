@@ -11,8 +11,8 @@ scanned_qr_code = None
 current_program = None  # 当前运行的程序
 
 # 程序标识
-WEIGHING_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/nywHyitYCh"
-EVIDENCE_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/qOWcQu9n7y"
+WEIGHING_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/nywHyitYCh"   # 称重程序
+EVIDENCE_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/qOWcQu9n7y"   # 取证程序
 
 # 称重程序相关函数
 def open_serial(port='/dev/ttyUSB0', baudrate=9600):
@@ -42,7 +42,7 @@ def close_serial(ser):
     ser.close()
     print("Serial port closed.")
 
-def check_value(ser, user_value, standard_value=700, tolerance=50):
+def check_value(ser, user_value, standard_value, tolerance):
     lower_limit = standard_value - tolerance  # 150
     upper_limit = standard_value + tolerance  # 250
 
@@ -52,7 +52,7 @@ def check_value(ser, user_value, standard_value=700, tolerance=50):
         green_light_blink(ser)  # 正常范围内，绿灯慢闪烁
 
 # 取证程序相关函数
-def fetch_token(user_input, image_base64, face_base64, qr_data):
+def fetch_token_and_send(user_input, image_base64, face_base64, qr_data):
     url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
     headers = {
         'accept': 'application/json',
@@ -75,7 +75,27 @@ def fetch_token(user_input, image_base64, face_base64, qr_data):
             print('Failed to fetch token: No access token returned.')
     except requests.RequestException as e:
         print(f'Error fetching token: {e}')
-
+#获取token并返回
+def fetch_token():
+    url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
+    headers = {
+        'accept': 'application/json',
+        'authorization': 'Basic cGlnOnBpZw==',
+        'content-type': 'application/x-www-form-urlencoded',
+        'platform-id': '1748273862476910594',
+        'tenant-id': '1749325197760434178'
+    }
+    data = {
+        'username': 'im0204',
+        'password': 'JFat0Zdc'
+    }
+    try:
+        response = requests.post(url, headers=headers, data=data)
+        response.raise_for_status()
+        token = response.json().get('access_token')
+        return token
+    except requests.RequestException as e:
+        print(f'Error fetching token: {e}')
 def add_data(token, user_input, image_base64, face_base64, qr_data):
     url = 'https://os.cajob.cloud/fd/formInstance'
     headers = {
@@ -99,6 +119,35 @@ def add_data(token, user_input, image_base64, face_base64, qr_data):
     except requests.RequestException as e:
         print(f'Error sending data to the backend: {e}')
 
+#获取称重程序阈值
+def get_data():
+    token = fetch_token()
+    url = 'https://os.cajob.cloud/fd/formInstance/page'
+    headers = {
+        'accept': 'application/json',
+        'authorization': f'Bearer {token}',
+        'content-type': 'application/json;charset=UTF-8',
+        'platform-id': '1748273862476910594',
+        'tenant-id': '1749325197760434178'
+    }
+    data_payload = {
+       "templateId":"1850929236043276288",
+       "current":1,
+       "size":10,
+       "queryFieldList":[],
+       "queryDefaultRecordCondition":[],
+       "orders":[]
+    }
+    try:
+        response = requests.post(url, headers=headers, json=data_payload)
+        response.raise_for_status()
+        if response.status_code == 200:
+            records = response.json().get('data', {}).get('records', [])
+        if records:
+            return [{'标准值': float(item['standard_value']), '浮动值': float(item['positive_negative_value'])} for item in records if item['a173036328345917519'] == '称重程序']
+    
+    except requests.RequestException as e:
+        print(f'Error sending data to the backend: {e}')
 def capture_single_photo(camera):
     if not camera.isOpened():
         print("Camera not opened for capture.")
@@ -129,13 +178,18 @@ def capture_single_photo(camera):
         return None
 
 def process_input(input_data, ser, camera1, camera3):
-    global user_input, scanned_qr_code, current_program
+    global user_input, scanned_qr_code, current_program,standard_value,positive_negative_value
 
     input_data = input_data.strip()
 
     # 检查是否是程序切换的URL
     if input_data == WEIGHING_URL:
         current_program = 'weighing'
+        #如果是称重码 调用接口查询称重阈值，，
+        data = get_data()
+        if data:
+            standard_value = data[0]['标准值']
+            positive_negative_value = data[0]['浮动值']
         print("Switched to weighing program.")
         return
     elif input_data == EVIDENCE_URL:
@@ -147,7 +201,7 @@ def process_input(input_data, ser, camera1, camera3):
     if current_program == 'weighing':
         try:
             weight_value = float(input_data)
-            check_value(ser, weight_value)
+            check_value(ser, weight_value,standard_value,positive_negative_value)
             time.sleep(2)
             turn_off_light(ser)
         except ValueError:
@@ -183,7 +237,7 @@ def start_capture(camera1, camera3):
         print("Failed to capture face image, stopping.")
         return
 
-    fetch_token(user_input, image_base64, face_base64, scanned_qr_code)
+    fetch_token_and_send(user_input, image_base64, face_base64, scanned_qr_code)
 
 def main():
     global current_program
