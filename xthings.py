@@ -53,28 +53,11 @@ def check_value(ser, user_value, standard_value, tolerance):
 
 # 取证程序相关函数
 def fetch_token_and_send(user_input, image_base64, face_base64, qr_data):
-    url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
-    headers = {
-        'accept': 'application/json',
-        'authorization': 'Basic cGlnOnBpZw==',
-        'content-type': 'application/x-www-form-urlencoded',
-        'platform-id': '1748273862476910594',
-        'tenant-id': '1749325197760434178'
-    }
-    data = {
-        'username': 'im0204',
-        'password': 'JFat0Zdc'
-    }
-    try:
-        response = requests.post(url, headers=headers, data=data)
-        response.raise_for_status()
-        token = response.json().get('access_token')
-        if token:
-            add_data(token, user_input, image_base64, face_base64, qr_data)
-        else:
-            print('Failed to fetch token: No access token returned.')
-    except requests.RequestException as e:
-        print(f'Error fetching token: {e}')
+    token = fetch_token()
+    if token:
+        add_data(token, user_input, image_base64, face_base64, qr_data)
+    else:
+        print("Cannot send data without a valid token.")
 #获取token并返回
 def fetch_token():
     url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
