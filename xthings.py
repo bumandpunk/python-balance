@@ -1,13 +1,57 @@
-import cv2
+import serial
 import time
+import cv2
 import requests
 import base64
 from datetime import datetime
 
-# 全局变量存储用户输入和二维码内容
+# 全局变量
 user_input = None
 scanned_qr_code = None
+current_program = None  # 当前运行的程序
 
+# 程序标识
+WEIGHING_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/nywHyitYCh"
+EVIDENCE_URL = "https://zwjy.ziway.com.cn/scan-code?short-chain=/qOWcQu9n7y"
+
+# 称重程序相关函数
+def open_serial(port='/dev/ttyUSB0', baudrate=9600):
+    ser = serial.Serial(port, baudrate, timeout=1)
+    if ser.is_open:
+        print(f"Serial port {port} opened successfully.")
+    else:
+        print(f"Failed to open serial port {port}.")
+    return ser
+
+def red_light(ser):
+    command = bytes.fromhex("01 06 00 C2 00 31 E9 E2")
+    ser.write(command)
+    print("Red light blinking.")
+
+def green_light_blink(ser):
+    command = bytes.fromhex("01 06 00 C2 00 33 68 23")
+    ser.write(command)
+    print("Green light slow blinking.")
+
+def turn_off_light(ser):
+    command = bytes.fromhex("01 06 00 C2 00 60 28 1E")
+    ser.write(command)
+    print("Light turned off.")
+
+def close_serial(ser):
+    ser.close()
+    print("Serial port closed.")
+
+def check_value(ser, user_value, standard_value=700, tolerance=50):
+    lower_limit = standard_value - tolerance  # 150
+    upper_limit = standard_value + tolerance  # 250
+
+    if user_value < lower_limit or user_value > upper_limit:
+        red_light(ser)  # 超出范围，红灯爆闪
+    else:
+        green_light_blink(ser)  # 正常范围内，绿灯慢闪烁
+
+# 取证程序相关函数
 def fetch_token(user_input, image_base64, face_base64, qr_data):
     url = 'https://os.cajob.cloud/auth/oauth/token?randomStr=blockPuzzle&code=&grant_type=password'
     headers = {
@@ -56,31 +100,24 @@ def add_data(token, user_input, image_base64, face_base64, qr_data):
         print(f'Error sending data to the backend: {e}')
 
 def capture_single_photo(camera):
-    """
-    用于通过摄像头拍照并将其转换为 Base64 编码
-    """
     if not camera.isOpened():
         print("Camera not opened for capture.")
         return None
 
-    # 丢弃旧帧，确保捕获的是最新帧
     for _ in range(5):
         ret, frame = camera.read()
         if not ret:
             print("Failed to read frame from camera.")
             return None
 
-    # 获取当前时间
     fixed_text = 'Xthings'
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     watermark_text = f"{fixed_text} {current_time}"
 
-    # 设置水印位置
     text_size, _ = cv2.getTextSize(watermark_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-    text_x = frame.shape[1] - text_size[0] - 10  # 距右上角10px
-    text_y = text_size[1] + 10  # 距上方10px
+    text_x = frame.shape[1] - text_size[0] - 10
+    text_y = text_size[1] + 10
 
-    # 绘制水印
     cv2.putText(frame, watermark_text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
     try:
         _, buffer = cv2.imencode('.jpg', frame)
@@ -91,29 +128,51 @@ def capture_single_photo(camera):
         print(f"Error encoding image: {e}")
         return None
 
-def process_input(input_data):
-    """
-    判断输入数据是数字（整数或小数）还是二维码，并存储到相应的变量中
-    """
-    global user_input, scanned_qr_code
+def process_input(input_data, ser, camera1, camera3):
+    global user_input, scanned_qr_code, current_program
+
     input_data = input_data.strip()
-    
-    try:
-        # 尝试将输入数据转换为浮点数
-        user_input = float(input_data)
-        print(f"Number entered: {user_input}")
-    except ValueError:
-        # 如果转换失败，则认为是二维码
-        scanned_qr_code = input_data
-        print(f"QR code scanned: {scanned_qr_code}")
+
+    # 检查是否是程序切换的URL
+    if input_data == WEIGHING_URL:
+        current_program = 'weighing'
+        print("Switched to weighing program.")
+        return
+    elif input_data == EVIDENCE_URL:
+        current_program = 'evidence'
+        print("Switched to evidence collection program.")
+        return
+
+    # 根据当前程序处理输入
+    if current_program == 'weighing':
+        try:
+            weight_value = float(input_data)
+            check_value(ser, weight_value)
+            time.sleep(2)
+            turn_off_light(ser)
+        except ValueError:
+            print("Invalid input. Please enter a valid number.")
+    elif current_program == 'evidence':
+        try:
+            # 尝试将输入数据转换为浮点数
+            user_input = float(input_data)
+            print(f"Number entered: {user_input}")
+        except ValueError:
+            # 如果转换失败，则认为是二维码
+            scanned_qr_code = input_data
+            print(f"QR code scanned: {scanned_qr_code}")
+
+        # 当数字和二维码内容都已填充时，开始拍照
+        if user_input is not None and scanned_qr_code is not None:
+            start_capture(camera1, camera3)
+            # 重置输入状态，准备下一次操作
+            user_input, scanned_qr_code = None, None
+    else:
+        print("Please enter a valid program URL to start (weighing or evidence collection).")
 
 def start_capture(camera1, camera3):
-    """
-    启动摄像头操作：一个摄像头用于拍照，另一个摄像头用于人脸拍照
-    """
     global user_input, scanned_qr_code
 
-    # 拍摄单张照片并转换为 Base64
     image_base64 = capture_single_photo(camera1)
     if not image_base64:
         print("Failed to capture image, stopping.")
@@ -124,47 +183,36 @@ def start_capture(camera1, camera3):
         print("Failed to capture face image, stopping.")
         return
 
-    # 将数据传递给后台
     fetch_token(user_input, image_base64, face_base64, scanned_qr_code)
 
 def main():
-    global user_input, scanned_qr_code
+    global current_program
 
-    # 主程序
-    camera1 = cv2.VideoCapture('/dev/v4l/by-id/usb-Generic_HBCJ_Camera_200901010001-video-index')  # 摄像头 1 用于拍照   使用
-    camera3 = cv2.VideoCapture('/dev/v4l/by-id/usb-DR-MX200C_DR-MX200C_342621-video-indexo')  # 摄像头 3 用于人脸拍照
+    # 初始化串口和摄像头
+    ser = open_serial(port='/dev/ttyUSB0', baudrate=9600)
 
-    # 设置摄像头帧率，确保帧速足够快
+    camera1 = cv2.VideoCapture('/dev/v4l/by-id/usb-Generic_HBCJ_Camera_200901010001-video-index0')
+    camera3 = cv2.VideoCapture('/dev/v4l/by-id/usb-DR-MX200C_DR-MX200C_342621-video-index0')
+
     camera1.set(cv2.CAP_PROP_FPS, 60)
     camera3.set(cv2.CAP_PROP_FPS, 30)
 
-    # 检查摄像头是否成功打开
     if not camera1.isOpened():
         print("Unable to open camera 1 for capturing photo.")
-        return
     if not camera3.isOpened():
         print("Unable to open camera 3 for face capture.")
-        return
 
-    # 主循环：等待用户输入和扫码枪扫描
-    while True:
-        try:
-            input_data = input("Please enter a number or scan the QR code (end with Enter): ")
-            process_input(input_data)  # 处理输入数据
-
-            # 当数字和二维码内容都已填充时，开始拍照
-            if user_input is not None and scanned_qr_code is not None:
-                start_capture(camera1, camera3)
-                # 重置输入状态，准备下一次操作
-                user_input, scanned_qr_code = None, None
-
-        except KeyboardInterrupt:
-            print("Program terminated by user.")
-            break
-
-    # 释放摄像头资源
-    camera1.release()
-    camera3.release()
+    try:
+        while True:
+            input_data = input("Please enter input (program URL or other content): ")
+            process_input(input_data, ser, camera1, camera3)
+    except KeyboardInterrupt:
+        print("Program terminated by user.")
+    finally:
+        # 释放资源
+        close_serial(ser)
+        camera1.release()
+        camera3.release()
 
 if __name__ == "__main__":
     main()
