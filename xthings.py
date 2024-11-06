@@ -169,13 +169,42 @@ def main():
     if not ser:
         return
 
-    camera1 = cv2.VideoCapture('/dev/v4l/by-id/usb-Generic_HBCJ_Camera_200901010001-video-index0')
-    camera2 = cv2.VideoCapture('/dev/v4l/by-id/usb-DR-MX200C_DR-MX200C_342621-video-index0')
+    # 设置最大尝试次数
+    max_attempts = 3
+
+    # 初始化摄像头1
+    attempt = 0
+    while attempt < max_attempts:
+        camera1 = cv2.VideoCapture('/dev/v4l/by-id/usb-Generic_HBCJ_Camera_200901010001-video-index0')
+        if camera1.isOpened():
+            print("Camera 1 opened successfully.")
+            break
+        else:
+            print(f"Attempt {attempt + 1} to open Camera 1 failed.")
+            camera1.release()
+            attempt += 1
+            time.sleep(1)  # 等待1秒后重试
 
     if not camera1.isOpened():
-        print("Unable to open camera 1 for capturing photo.")
+        print("Unable to open Camera 1 after multiple attempts.")
+        return
+
+    # 初始化摄像头2
+    attempt = 0
+    while attempt < max_attempts:
+        camera2 = cv2.VideoCapture('/dev/v4l/by-id/usb-DR-MX200C_DR-MX200C_342621-video-index0')
+        if camera2.isOpened():
+            print("Camera 2 opened successfully.")
+            break
+        else:
+            print(f"Attempt {attempt + 1} to open Camera 2 failed.")
+            camera2.release()
+            attempt += 1
+            time.sleep(1)  # 等待1秒后重试
+
     if not camera2.isOpened():
-        print("Unable to open camera 2 for capturing photo.")
+        print("Unable to open Camera 2 after multiple attempts.")
+        return
 
     standard_value, tolerance = get_threshold_values()
     if standard_value is None or tolerance is None:
