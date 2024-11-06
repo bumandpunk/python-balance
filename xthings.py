@@ -52,10 +52,10 @@ def check_value(ser, user_value, standard_value, tolerance):
         green_light_blink(ser)  # 正常范围内，绿灯慢闪烁
 
 # 取证程序相关函数
-def fetch_token_and_send(user_input, image_base64, face_base64, qr_data):
+def fetch_token_and_send(user_input, image_base64, face_base64, qr_data,ser):
     token = fetch_token()
     if token:
-        add_data(token, user_input, image_base64, face_base64, qr_data)
+        add_data(token, user_input, image_base64, face_base64, qr_data,ser)
     else:
         print("Cannot send data without a valid token.")
 #获取token并返回
@@ -79,7 +79,7 @@ def fetch_token():
         return token
     except requests.RequestException as e:
         print(f'Error fetching token: {e}')
-def add_data(token, user_input, image_base64, face_base64, qr_data):
+def add_data(token, user_input, image_base64, face_base64, qr_data,ser):
     url = 'https://os.cajob.cloud/fd/formInstance'
     headers = {
         'accept': 'application/json',
@@ -98,9 +98,16 @@ def add_data(token, user_input, image_base64, face_base64, qr_data):
     try:
         response = requests.post(url, headers=headers, json=data_payload)
         response.raise_for_status()
+        # 称重+拍照完成后，绿灯慢闪烁
+        green_light_blink(ser)
+        time.sleep(1)
+        turn_off_light(ser)
         print('Data successfully sent to the backend.')
     except requests.RequestException as e:
         print(f'Error sending data to the backend: {e}')
+        red_light(ser)
+        time.sleep(1)
+        turn_off_light(ser)
 
 #获取称重程序阈值
 def get_data():
@@ -201,13 +208,13 @@ def process_input(input_data, ser, camera1, camera3):
 
         # 当数字和二维码内容都已填充时，开始拍照
         if user_input is not None and scanned_qr_code is not None:
-            start_capture(camera1, camera3)
+            start_capture(camera1, camera3,ser)
             # 重置输入状态，准备下一次操作
             user_input, scanned_qr_code = None, None
     else:
         print("Please enter a valid program URL to start (weighing or evidence collection).")
 
-def start_capture(camera1, camera3):
+def start_capture(camera1, camera3,ser):
     global user_input, scanned_qr_code
 
     image_base64 = capture_single_photo(camera1)
@@ -220,7 +227,7 @@ def start_capture(camera1, camera3):
         print("Failed to capture face image, stopping.")
         return
 
-    fetch_token_and_send(user_input, image_base64, face_base64, scanned_qr_code)
+    fetch_token_and_send(user_input, image_base64, face_base64, scanned_qr_code,ser)
 
 def main():
     global current_program
