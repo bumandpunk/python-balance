@@ -8,7 +8,12 @@ from datetime import datetime
 # 全局变量
 user_weight = None
 scanned_qr_code = None
-# authenticated = True  # 是否已通过认证
+# 全局变量
+token_info = {
+    'access_token': None,
+    'expires_at': 0  # 时间戳，表示 Token 的过期时间
+}
+
 
 # 认证码（扫描此码开始工作）
 # AUTH_CODE = "https://zwjy.ziway.com.cn/scan-code?short-chain=/qOWcQu9n7y"  # 请替换为您的认证码内容
@@ -44,6 +49,14 @@ def turn_off_light(ser):
 def close_serial(ser):
     ser.close()
     print("Serial port closed.")
+def get_valid_token():
+    current_time = time.time()
+    if token_info['access_token'] and token_info['expires_at'] > current_time:
+        # Token 有效，直接返回
+        return token_info['access_token']
+    else:
+        # Token 不存在或已过期，重新获取
+        return fetch_token()
 
 # 获取 token
 def fetch_token():
@@ -62,15 +75,22 @@ def fetch_token():
     try:
         response = requests.post(url, headers=headers, data=data)
         response.raise_for_status()
-        token = response.json().get('access_token')
-        return token
+        token_data = response.json()
+        access_token = token_data.get('access_token')
+        expires_in = token_data.get('expires_in', 3600)  # 获取 Token 的有效期，默认为3600秒（1小时）
+        # 计算 Token 的过期时间
+        expires_at = time.time() + expires_in - 60  # 提前60秒刷新 Token
+        # 更新全局 Token 信息
+        token_info['access_token'] = access_token
+        token_info['expires_at'] = expires_at
+        return access_token
     except requests.RequestException as e:
         print(f'Error fetching token: {e}')
         return None
 
 # 获取称重阈值
 def get_threshold_values():
-    token = fetch_token()
+    token = get_valid_token()
     if not token:
         print("Cannot fetch threshold values without a valid token.")
         return None, None
@@ -250,23 +270,19 @@ def main():
                 print("Failed to capture photos.")
                 weight_in_range = False  # 不满足条件
 
-            # 上传数据
-            token = fetch_token()
-            if not token:
-                print("Failed to fetch token.")
-                weight_in_range = False  # 不满足条件
-            else:
-                data_sent = add_data(token, weight_value, image_base64, face_base64, qr_data)
-                if not data_sent:
-                    weight_in_range = False  # 不满足条件
-
-            # 根据条件闪烁灯光
+             # 根据条件闪烁灯光
             if weight_in_range:
                 green_light_blink(ser)
             else:
                 red_light(ser)
             time.sleep(2)
             turn_off_light(ser)
+
+            # 上传数据
+            token = get_valid_token()
+            add_data(token, weight_value, image_base64, face_base64, qr_data)
+                # if not data_sent:
+                #     weight_in_range = False  # 不满足条件
 
             print("Process completed. Ready for the next cycle.\n")
 
