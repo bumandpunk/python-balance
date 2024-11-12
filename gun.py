@@ -3,6 +3,9 @@ import urllib.parse
 import requests
 import json
 import time
+from printLabel import printMsg
+import schedule
+import threading
 
 # 全局变量，用于存储 token 和过期时间
 token_info = {
@@ -52,6 +55,113 @@ def get_valid_token():
     else:
         # Token 不存在或已过期，重新获取
         return fetch_token()
+
+# 重命名后的函数，原代码 A 中的 get_all_bound_product_codes
+def process_packages():
+    """
+    获取包裹列表并处理
+    """
+    token = get_valid_token()
+    if not token:
+        print("无法获取有效的 token，无法处理包裹。")
+        return
+
+    page = 1
+    size = 100  # 每页获取 100 条记录
+
+    # 获取所有包裹码
+    while True:
+        url = 'https://os.cajob.cloud/fd/formInstance/page'
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json;charset=UTF-8',
+            'platform-id': '1748273862476910594',
+            'tenant-id': '1749325197760434178',
+        }
+        query_field_list = [{"fieldName": "a173131436547072450", "fieldValue": "0", "operType": "fuzzy"}]
+        data_payload = {
+            "templateId": "1853070969242693632",
+            "current": page,
+            "size": size,
+            "queryFieldList": query_field_list,
+            "queryDefaultRecordCondition": [],
+            "orders": []
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=data_payload)
+            response.raise_for_status()
+            response_data = response.json()
+            records = response_data.get('data', {}).get('records', [])
+            if not records:
+                break
+            for record in records:
+                package_id = record.get('id')
+                # 获取订单团 a173087390507965044
+                product_code = record.get('a173087390507965044')
+                # 获取配送地址 a173130986937073648
+                adress = record.get('a173130986937073648')
+                # 获取A套餐数量 a173130981465020296
+                num_a = record.get('a173130981465020296')
+                # 获取B套餐数量 a173130982288125457
+                num_b = record.get('a173130982288125457')
+                # 获取C套餐数量 a173130983085389180
+                num_c = record.get('a173130983085389180')
+                # 获取辣椒用量 a173130984148617041
+                chili_num = record.get('a173130984148617041')
+                # 获取配送人员 a17313103081973913
+                delivery_personnel = record.get('a17313103081973913')
+                # 获取包裹编号 a173087376594083170
+                package_no = record.get('a173087376594083170')
+
+                content = f"<CB>知味配送单</CB><BR>"
+                content += f"团信息：<BR>"
+                content += f"<B>{product_code}</B><BR>"
+                content += f"配送地址：<BR>"
+                content += f"<B>{adress}</B><BR>"
+                content += f"套餐数量：<BR>"
+                content += f"<B>A套餐：{num_a}</B><BR>"
+                content += f"<B>B套餐：{num_b}</B><BR>"
+                content += f"<B>C套餐：{num_c}</B><BR>"
+                content += f"<B>辣椒用量：{chili_num}</B><BR><BR>"
+                content += f"<QR>https://h5.ziway.com.cn/#/subPackages/sy/evaluate/index?BgNo={package_no}</QR>"
+                content += f"知味工场 干净卫生 味美价廉 透明厨房 拒绝预制<BR><BR>"
+                content += f"{package_no}<BR><BR>"
+                content += f"<B>----------------<B>"
+                if package_id:
+                    printMsg("932600672", content)
+                    update_data(token, package_id)
+            total = response_data.get('data', {}).get('total', 0)
+            if page * size >= total:
+                break
+            page += 1
+        except requests.RequestException as e:
+            print(f'获取包裹码列表时出错：{e}')
+            if e.response is not None:
+                print("服务器响应内容：")
+                print(e.response.text)
+            break
+
+def update_data(token, id):
+    url = 'https://os.cajob.cloud/fd/formInstance'
+    headers = {
+        'accept': 'application/json',
+        'authorization': f'Bearer {token}',
+        'content-type': 'application/json;charset=UTF-8',
+        'platform-id': '1748273862476910594',
+        'tenant-id': '1749325197760434178'
+    }
+    data_payload = {
+        "id": id,
+        "templateId": "1853070969242693632",
+        "a173131436547072450": "1"
+    }
+    response = requests.put(url, headers=headers, json=data_payload)
+    if response.status_code == 200:
+        print(f'{id} 修改成功')
+    else:
+        print('更新数据出错:', response.text)
 
 def query_package_code(token, package_code):
     url = 'https://os.cajob.cloud/fd/formInstance/page'
@@ -120,7 +230,9 @@ def upload_package_code(token, package_code):
         response = requests.post(url, headers=headers, json=data_payload)
         response.raise_for_status()
         response_data = response.json()
-        package_id = response_data.get('data')  # 获取包裹的 id
+        package_id = response_data.get('id')
+        if not package_id:
+            package_id = response_data.get('data')
         print(f'包裹码已成功上传，ID：{package_id}')
         return package_id
     except requests.RequestException as e:
@@ -256,7 +368,7 @@ def get_all_bound_product_codes(token):
         all_bound_product_codes.update(existing_codes)
     print(f"已缓存所有已绑定的商品码，共计 {len(all_bound_product_codes)} 个。")
 
-def main():
+def interactive_input():
     global all_bound_product_codes
     current_package_code = None  # 当前的包裹码（完整的二维码内容）
     current_package_id = None    # 当前包裹码对应的 ID
@@ -325,6 +437,33 @@ def main():
         except Exception as e:
             print(f"发生错误：{e}")
             continue
+
+def main():
+    # 定义并启动定时任务线程
+    def schedule_task():
+        # 每秒执行一次 process_packages
+        schedule.every(1).seconds.do(process_packages)
+        while True:
+            schedule.run_pending()
+            time.sleep(1)
+
+    # 启动定时任务线程
+    task_thread = threading.Thread(target=schedule_task)
+    task_thread.daemon = True  # 设置为守护线程，主线程退出时自动退出
+    task_thread.start()
+
+    # 启动用户交互线程
+    input_thread = threading.Thread(target=interactive_input)
+    input_thread.daemon = True  # 设置为守护线程
+    input_thread.start()
+
+    # 主线程保持运行，等待用户中断
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n程序已终止。")
+        sys.exit()
 
 if __name__ == "__main__":
     main()
