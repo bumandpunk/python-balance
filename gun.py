@@ -6,7 +6,6 @@ import time
 from printLabel import printMsg
 import schedule
 import threading
-
 # 全局变量，用于存储 token 和过期时间
 token_info = {
     'access_token': None,
@@ -437,16 +436,15 @@ def interactive_input():
         except Exception as e:
             print(f"发生错误：{e}")
             continue
-
-def main():
-    # 定义并启动定时任务线程
-    def schedule_task():
+def schedule_task():
         # 每秒执行一次 process_packages
         schedule.every(1).seconds.do(process_packages)
         while True:
             schedule.run_pending()
             time.sleep(1)
-
+def main():
+    # 定义并启动定时任务线程
+    
     # 启动定时任务线程
     task_thread = threading.Thread(target=schedule_task)
     task_thread.daemon = True  # 设置为守护线程，主线程退出时自动退出
