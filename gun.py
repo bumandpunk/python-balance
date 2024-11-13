@@ -113,6 +113,8 @@ def process_packages():
                 delivery_personnel = record.get('a17313103081973913')
                 # 获取包裹编号 a173087376594083170
                 package_no = record.get('a173087376594083170')
+                #获取配送时间  a173147637339175555
+                delivery_time = record.get('a173147637339175555')
 
                 content = f"<CB>知味配送单</CB><BR>"
                 content += f"团信息：<BR>"
@@ -123,7 +125,9 @@ def process_packages():
                 content += f"<B>A套餐：{num_a}</B><BR>"
                 content += f"<B>B套餐：{num_b}</B><BR>"
                 content += f"<B>C套餐：{num_c}</B><BR>"
-                content += f"<B>辣椒用量：{chili_num}</B><BR><BR>"
+                content += f"<B>辣椒用量：{chili_num}</B><BR>"
+                content += f"配送时间：<BR>"
+                content += f"{delivery_time}<BR><BR>"
                 content += f"<QR>https://h5.ziway.com.cn/#/subPackages/sy/evaluate/index?BgNo={package_no}</QR>"
                 content += f"知味工场 干净卫生 味美价廉 透明厨房 拒绝预制<BR><BR>"
                 content += f"{package_no}<BR><BR>"
