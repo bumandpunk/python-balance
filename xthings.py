@@ -77,7 +77,7 @@ def fetch_token():
         response.raise_for_status()
         token_data = response.json()
         access_token = token_data.get('access_token')
-        expires_in = token_data.get('expires_in', 3600)  # 获取 Token 的有效期，默认为3600秒（1小时）
+        expires_in = token_data.get('expires_in', 360)  # 获取 Token 的有效期，默认为3600秒（1小时）
         # 计算 Token 的过期时间
         expires_at = time.time() + expires_in - 60  # 提前60秒刷新 Token
         # 更新全局 Token 信息
