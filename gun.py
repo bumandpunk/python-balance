@@ -128,7 +128,7 @@ def process_packages():
                 content += f"<B>辣椒用量：{chili_num}</B><BR>"
                 content += f"配送时间：<BR>"
                 content += f"{delivery_time}<BR><BR>"
-                content += f"<QR>https://h5.ziway.com.cn/#/subPackages/sy/evaluate/index?BgNo={package_no}</QR>"
+                content += f"<QR>https://h5.ziway.com.cn/#/subPackages/sy/evaluate/index?BgNO={package_no}</QR>"
                 content += f"知味工场 干净卫生 味美价廉 透明厨房 拒绝预制<BR><BR>"
                 content += f"{package_no}<BR><BR>"
                 content += f"<B>----------------<B>"
