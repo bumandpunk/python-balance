@@ -133,8 +133,23 @@ def process_packages():
                 content += f"{package_no}<BR><BR>"
                 content += f"<B>----------------<B>"
                 if package_id:
-                    printMsg("932600672", content)
-                    update_data(token, package_id)
+                    msg = printMsg("932600672", content)
+                    if msg is not None:
+                        try:
+                            # 将字节字符串解码为普通字符串
+                            msg_str = msg.decode('utf-8')
+                            # 将普通字符串解析为字典
+                            msg_dict = json.loads(msg_str)
+                            # print(msg_dict)
+                            # print(msg_dict.get('ret'))
+                            if msg_dict.get('ret') == 0:
+                                update_data(token, package_id)
+                        except (AttributeError, UnicodeDecodeError, json.JSONDecodeError) as e:
+                            print(f"解析消息失败: {e}")
+                    else:
+                        print("printMsg 返回 None，无法获取 'ret' 参数。")
+                    
+                    
             total = response_data.get('data', {}).get('total', 0)
             if page * size >= total:
                 break
@@ -442,7 +457,7 @@ def interactive_input():
             continue
 def schedule_task():
         # 每秒执行一次 process_packages
-        schedule.every(1).seconds.do(process_packages)
+        schedule.every(30).seconds.do(process_packages)
         while True:
             schedule.run_pending()
             time.sleep(1)
