@@ -42,5 +42,6 @@ def printMsg(sn,content):
     code = response.status_code  # 响应状态码
     if code == 200:
         print(response.content)  # 服务器返回的JSON字符串,建议要当做日志记录起来
+        return response.content  # 服务器返回的JSON字符串,建议要当做日志记录起来
     else:
         print("error")
